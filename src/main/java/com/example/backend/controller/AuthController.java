@@ -10,7 +10,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import com.example.backend.entity.Student;
+import com.example.backend.entity.Lecturer;
 import com.example.backend.repository.StudentRepository;
+import com.example.backend.repository.LecturerRepository;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,17 +26,20 @@ public class AuthController {
     private final UserDetailsServiceImpl userDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final StudentRepository studentRepo;
+    private final LecturerRepository lecturerRepo;
 
     public AuthController(
             JwtUtil jwtUtil,
             UserDetailsServiceImpl userDetailsService,
             PasswordEncoder passwordEncoder,
-            StudentRepository studentRepo
+            StudentRepository studentRepo,
+            LecturerRepository lecturerRepo
     ) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
         this.passwordEncoder = passwordEncoder;
         this.studentRepo = studentRepo;
+        this.lecturerRepo = lecturerRepo;
     }
 
     @PostMapping("/login")
@@ -134,6 +139,55 @@ public class AuthController {
             response.put("status", "success");
             response.put("message", "Student registered successfully");
             response.put("rollNumber", rollNumber);
+            response.put("name", name);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Registration failed: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/lecturer/register")
+    public ResponseEntity<?> registerLecturer(@RequestBody Map<String, String> req) {
+        try {
+            // Validate input
+            String name = req.get("name");
+            String email = req.get("email");
+            String password = req.get("password");
+
+            if (name == null || name.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Name is required"));
+            }
+            if (email == null || email.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Email is required"));
+            }
+            if (password == null || password.trim().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Password is required"));
+            }
+
+            // Check if lecturer already exists
+            if (lecturerRepo.findByEmail(email).isPresent()) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "Lecturer with this email already exists"));
+            }
+
+            // Create and save lecturer
+            Lecturer lecturer = new Lecturer();
+            lecturer.setName(name);
+            lecturer.setEmail(email);
+            lecturer.setPassword(passwordEncoder.encode(password));
+            lecturerRepo.save(lecturer);
+
+            // Success response
+            Map<String, String> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("message", "Lecturer registered successfully");
+            response.put("email", email);
             response.put("name", name);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
